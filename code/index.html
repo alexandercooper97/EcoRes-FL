@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoRes-FL · Federated Learning Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0e14;
+    --bg2:      #111820;
+    --bg3:      #181f2a;
+    --bg4:      #1e2838;
+    --border:   rgba(255,255,255,0.07);
+    --border2:  rgba(255,255,255,0.13);
+    --t1:       #e8f0fe;
+    --t2:       #7a8fa6;
+    --t3:       #4a5e72;
+    --acc:      #00d4a0;
+    --acc2:     #ff6b6b;
+    --acc3:     #4ea8ff;
+    --acc4:     #ffb347;
+    --acc5:     #c084fc;
+    --mono:     'Space Mono', monospace;
+    --sans:     'Inter', sans-serif;
+    --glow:     0 0 24px rgba(0,212,160,0.15);
+  }
+
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--t1); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,212,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,160,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,14,20,0.85);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  .logo {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--acc); letter-spacing: 1px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--acc); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+  .header-links { display: flex; gap: 24px; }
+  .header-links a {
+    font-size: 12px; color: var(--t2); text-decoration: none;
+    font-family: var(--mono); transition: color 0.2s;
+  }
+  .header-links a:hover { color: var(--acc); }
+
+  /* ── HERO ── */
+  .hero { padding: 72px 0 56px; text-align: center; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,212,160,0.08); border: 1px solid rgba(0,212,160,0.2);
+    border-radius: 20px; padding: 4px 14px; font-size: 11px;
+    font-family: var(--mono); color: var(--acc); margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-family: var(--mono); font-size: clamp(28px,5vw,52px); font-weight: 700;
+    line-height: 1.1; margin-bottom: 16px; letter-spacing: -1px;
+    background: linear-gradient(135deg, #e8f0fe 0%, #00d4a0 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: 16px; color: var(--t2); max-width: 580px; margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+  .hero-stats {
+    display: flex; gap: 32px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+  .hstat { text-align: center; }
+  .hstat-val { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--acc); }
+  .hstat-label { font-size: 11px; color: var(--t3); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── SECTION ── */
+  .section { padding: 48px 0; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .section-num { font-family: var(--mono); font-size: 11px; color: var(--acc); opacity: 0.6; }
+  .section-title { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--t1); text-transform: uppercase; letter-spacing: 1.5px; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .card-title { font-size: 11px; color: var(--t3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+
+  /* ── CONTROLS ── */
+  .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+
+  .ctrl-group { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .ctrl-label { font-size: 11px; color: var(--t3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .ctrl-val { color: var(--acc); font-weight: 700; }
+
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px;
+    background: var(--bg4); border-radius: 2px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--acc); cursor: pointer;
+    box-shadow: 0 0 8px rgba(0,212,160,0.4);
+  }
+  select {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--t1); padding: 8px 10px; border-radius: 6px; font-size: 13px;
+    font-family: var(--sans); outline: none; cursor: pointer;
+  }
+  select:focus { border-color: var(--acc); }
+
+  /* method checkboxes */
+  .method-checks { display: flex; gap: 10px; flex-wrap: wrap; }
+  .mcheck {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border2);
+    font-size: 11px; font-family: var(--mono); transition: all 0.15s;
+    user-select: none;
+  }
+  .mcheck.active { border-color: transparent; }
+  .mcheck-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* run button */
+  .run-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 14px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, #00d4a0, #00a87e);
+    color: #0a0e14; font-family: var(--mono); font-size: 13px; font-weight: 700;
+    letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s;
+    margin-bottom: 32px; box-shadow: 0 4px 20px rgba(0,212,160,0.2);
+  }
+  .run-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(0,212,160,0.35); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(10,14,20,0.3); border-top-color: #0a0e14; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── METRIC CARDS ── */
+  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  .mcard {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; transition: border-color 0.3s;
+  }
+  .mcard:hover { border-color: var(--border2); }
+  .mcard-label { font-size: 10px; color: var(--t3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .mcard-value { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+  .mcard-sub { font-size: 10px; color: var(--t3); margin-top: 3px; }
+  .mcard.highlight { border-color: rgba(0,212,160,0.3); background: rgba(0,212,160,0.04); }
+
+  /* ── CHART AREAS ── */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px;
+  }
+  .chart-label { font-size: 11px; color: var(--t3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .chart-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .chart-canvas-wrap { position: relative; height: 200px; }
+
+  /* ── PARETO ── */
+  .pareto-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .pareto-canvas-wrap { position: relative; height: 260px; }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; margin-bottom: 16px;
+  }
+  .results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .results-table th {
+    padding: 10px 14px; text-align: left; font-size: 10px; font-family: var(--mono);
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--t3);
+    border-bottom: 1px solid var(--border); background: var(--bg3);
+  }
+  .results-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--t1); font-family: var(--mono); font-size: 11px; }
+  .results-table tr:last-child td { border-bottom: none; }
+  .results-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge-pill {
+    display: inline-block; padding: 2px 9px; border-radius: 12px;
+    font-size: 10px; font-weight: 600;
+  }
+  .delta-good { color: var(--acc); }
+  .delta-bad  { color: var(--acc2); }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+  .leg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--t2); font-family: var(--mono); }
+  .leg-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* ── DATASET TABS ── */
+  .ds-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .ds-tab {
+    padding: 7px 18px; border-radius: 20px; border: 1px solid var(--border2);
+    font-size: 12px; font-family: var(--mono); color: var(--t2);
+    cursor: pointer; transition: all 0.15s; background: transparent;
+  }
+  .ds-tab.active { background: var(--acc); color: var(--bg); border-color: transparent; }
+  .ds-tab:hover:not(.active) { border-color: var(--acc); color: var(--acc); }
+
+  /* ── ABOUT SECTION ── */
+  .algo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .algo-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; position: relative; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .algo-card:hover { border-color: var(--border2); }
+  .algo-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .algo-card.c1::before { background: var(--acc2); }
+  .algo-card.c2::before { background: var(--acc3); }
+  .algo-card.c3::before { background: var(--acc4); }
+  .algo-card.c4::before { background: var(--acc); }
+  .algo-name { font-family: var(--mono); font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+  .algo-desc { font-size: 12px; color: var(--t2); line-height: 1.6; }
+  .algo-tag { display: inline-block; margin-top: 10px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: var(--mono); background: rgba(255,255,255,0.05); color: var(--t3); }
+
+  /* ── DEPLOY SECTION ── */
+  .steps { display: flex; flex-direction: column; gap: 16px; }
+  .step { display: flex; gap: 16px; align-items: flex-start; }
+  .step-num { font-family: var(--mono); font-size: 11px; color: var(--acc); background: rgba(0,212,160,0.1); border: 1px solid rgba(0,212,160,0.2); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 700; }
+  .step-body { padding-top: 4px; }
+  .step-title { font-size: 13px; font-weight: 600; color: var(--t1); margin-bottom: 4px; }
+  .step-desc { font-size: 12px; color: var(--t2); line-height: 1.6; }
+  code {
+    font-family: var(--mono); background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--acc);
+  }
+  pre {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; font-family: var(--mono); font-size: 11px; color: #7affda;
+    overflow-x: auto; line-height: 1.7; margin: 8px 0;
+  }
+  pre .comment { color: var(--t3); }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border); padding: 32px 0;
+    text-align: center; font-size: 11px; color: var(--t3);
+    font-family: var(--mono);
+  }
+  footer a { color: var(--t3); text-decoration: none; }
+  footer a:hover { color: var(--acc); }
+
+  /* ── RUNNING ANIMATION ── */
+  .progress-bar { height: 2px; background: var(--border); border-radius: 1px; margin-bottom: 20px; overflow: hidden; display: none; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc3)); width: 0; transition: width 0.3s; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .metrics-row { grid-template-columns: repeat(2,1fr); }
+    .hero h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="wrap header-inner">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      EcoRes-FL
+    </div>
+    <nav class="header-links">
+      <a href="#simulator">Simulador</a>
+      <a href="#about">Algoritmos</a>
+      <a href="#deploy">Despliegue</a>
+      <a href="https://github.com" target="_blank">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-badge">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--acc)"></div>
+      Simulador de Federated Learning consciente del carbono
+    </div>
+    <h1>EcoRes-FL</h1>
+    <p>Compara FedAvg, FedProx, CarbonAware y EcoRes-FL en tiempo real. Ajusta los parámetros y observa cómo varía la precisión, el carbono y la comunicación bajo heterogeneidad non-IID.</p>
+    <div class="hero-stats">
+      <div class="hstat"><div class="hstat-val">4</div><div class="hstat-label">algoritmos</div></div>
+      <div class="hstat"><div class="hstat-val">3</div><div class="hstat-label">datasets</div></div>
+      <div class="hstat"><div class="hstat-val">≥70%</div><div class="hstat-label">menos comm.</div></div>
+      <div class="hstat"><div class="hstat-val">100%</div><div class="hstat-label">client-side</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- SIMULATOR -->
+<section class="section" id="simulator">
+  <div class="wrap">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">Configurar simulación</span>
+      <div class="section-line"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-grid">
+      <div class="ctrl-group">
+        <div class="ctrl-label">Dataset <span class="ctrl-val" id="lbl-dataset">synthetic_vision</span></div>
+        <select id="sel-dataset" onchange="document.getElementById('lbl-dataset').textContent=this.value">
+          <option value="synthetic_vision">synthetic_vision (10 clases)</option>
+          <option value="iot_fault">iot_fault (5 clases)</option>
+          <option value="digits">digits (10 clases)</option>
+        </select>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Rondas federadas <span class="ctrl-val" id="lbl-rounds">15</span></div>
+        <input type="range" id="sl-rounds" min="5" max="15" value="15" step="1"
+          oninput="document.getElementById('lbl-rounds').textContent=this.value">
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Alpha Dirichlet <span class="ctrl-val" id="lbl-alpha">0.25</span></div>
+        <input type="range" id="sl-alpha" min="0" max="3" value="1" step="1"
+          oninput="document.getElementById('lbl-alpha').textContent=['0.10','0.25','0.50','1.00'][this.value]">
+      </div>
+    </div>
+
+    <div class="ctrl-group" style="margin-bottom:20px;">
+      <div class="ctrl-label" style="margin-bottom:12px;">Métodos a comparar</div>
+      <div class="method-checks">
+        <label class="mcheck active c1" data-method="FedAvg" onclick="toggleMethod(this)">
+          <div class="mcheck-dot" style="background:var(--acc2)"></div>FedAvg
+        </label>
+        <label class="mcheck active c2" data-method="FedProx" onclick="toggleMethod(this)">
+          <div class="mcheck-dot" style="background:var(--acc3)"></div>FedProx
+        </label>
+        <label class="mcheck active c3" data-method="CarbonAware" onclick="toggleMethod(this)">
+          <div class="mcheck-dot" style="background:var(--acc4)"></div>CarbonAware
+        </label>
+        <label class="mcheck active c4" data-method="EcoRes-FL" onclick="toggleMethod(this)">
+          <div class="mcheck-dot" style="background:var(--acc)"></div>EcoRes-FL ★
+        </label>
+      </div>
+    </div>
+
+    <button class="run-btn" id="run-btn" onclick="runSimulation()">
+      <span id="btn-icon">▶</span>
+      <span id="btn-text">Ejecutar simulación</span>
+    </button>
+
+    <div class="progress-bar" id="prog-bar">
+      <div class="progress-fill" id="prog-fill"></div>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="metrics-row" id="metric-cards">
+      <div class="mcard"><div class="mcard-label">Mejor precisión</div><div class="mcard-value" style="color:var(--acc3)" id="mc-acc">—</div><div class="mcard-sub" id="mc-acc-m">ejecuta la sim.</div></div>
+      <div class="mcard highlight"><div class="mcard-label">Comm EcoRes-FL</div><div class="mcard-value" style="color:var(--acc)" id="mc-comm">—</div><div class="mcard-sub" id="mc-comm-d">vs FedAvg</div></div>
+      <div class="mcard"><div class="mcard-label">Carbono EcoRes</div><div class="mcard-value" style="color:var(--acc4)" id="mc-carbon">—</div><div class="mcard-sub" id="mc-carbon-d">gCO₂eq total</div></div>
+      <div class="mcard"><div class="mcard-label">Reducción comm.</div><div class="mcard-value" style="color:var(--acc2)" id="mc-save">—</div><div class="mcard-sub">EcoRes-FL vs FedAvg</div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="section-header" style="margin-bottom:16px;">
+      <span class="section-num">02</span>
+      <span class="section-title">Convergencia por ronda</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="legend" id="chart-legend"></div>
+
+    <div class="charts-grid">
+      <div class="chart-wrap">
+        <div class="chart-label">Precisión (accuracy)</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-acc" role="img" aria-label="Accuracy por ronda para cada método"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-label">Comunicación acumulada (MB)</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-comm" role="img" aria-label="Comunicación acumulada por ronda"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-label">Carbono proxy acumulado (gCO₂eq)</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-carbon" role="img" aria-label="Carbono acumulado por ronda"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-label">Vista Pareto — Precisión vs Carbono</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-pareto" role="img" aria-label="Pareto accuracy vs carbono"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="section-header" style="margin:28px 0 16px;">
+      <span class="section-num">03</span>
+      <span class="section-title">Tabla comparativa</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Método</th>
+            <th>Accuracy final</th>
+            <th>Macro-F1</th>
+            <th>Comm. (MB)</th>
+            <th>Carbono (g)</th>
+            <th>Energía (J)</th>
+            <th>Drop rate</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody">
+          <tr><td colspan="7" style="text-align:center;color:var(--t3);padding:24px;">
+            Ajusta los parámetros y haz clic en <em>Ejecutar simulación</em>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section class="section" id="about">
+  <div class="wrap">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <span class="section-title">Algoritmos</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="algo-grid">
+      <div class="algo-card c1">
+        <div class="algo-name" style="color:var(--acc2)">FedAvg</div>
+        <div class="algo-desc">Baseline clásico. Selección aleatoria de clientes, agregación ponderada por datos locales. Gradientes completos.</div>
+        <span class="algo-tag">McMahan et al., 2017</span>
+      </div>
+      <div class="algo-card c2">
+        <div class="algo-name" style="color:var(--acc3)">FedProx</div>
+        <div class="algo-desc">Añade penalización proximal μ‖w − w_global‖² para controlar la divergencia en entornos non-IID.</div>
+        <span class="algo-tag">Li et al., 2020</span>
+      </div>
+      <div class="algo-card c3">
+        <div class="algo-name" style="color:var(--acc4)">CarbonAware</div>
+        <div class="algo-desc">Selección por score multiobjetivo que minimiza carbono instantáneo. Prefiere clientes con energía renovable.</div>
+        <span class="algo-tag">Carbon-aware scheduling</span>
+      </div>
+      <div class="algo-card c4">
+        <div class="algo-name" style="color:var(--acc)">EcoRes-FL ★</div>
+        <div class="algo-desc">ILP binario + proximal + top-k sparsification. Reduce comunicación ≥70% con pérdida marginal de accuracy.</div>
+        <span class="algo-tag">Propuesto · 2025</span>
+      </div>
+    </div>
+
+    <!-- Architecture diagram in text -->
+    <div style="margin-top:24px; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <div class="chart-label">Flujo del simulador</div>
+      <pre><span class="comment"># Por cada ronda r = 1..R:</span>
+select_clients(method, profiles, r)     <span class="comment"># selección según algoritmo</span>
+  └─ [FedAvg/FedProx]  → aleatorio uniforme
+  └─ [CarbonAware]     → rank por score ponderado
+  └─ [EcoRes-FL]       → ILP (scipy.milp) o greedy fallback
+
+for each client_k in selected:
+    W_k, b_k = local_train_softmax(X_k, W, b, μ)   <span class="comment"># SGD local</span>
+    dW, db   = sparsify_update(W_k-W, b_k-b, k%)   <span class="comment"># top-k (EcoRes)</span>
+    estimate_cost(profile_k, density, ci_k)          <span class="comment"># energía + carbono</span>
+
+W += Σ_k (n_k/N) · dW_k                             <span class="comment"># FedAvg aggregation</span>
+evaluate(X_test, W)                                  <span class="comment"># accuracy + F1</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- DEPLOY SECTION -->
+<section class="section" id="deploy">
+  <div class="wrap">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <span class="section-title">Cómo desplegar en GitHub Pages</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.7;">
+          Esta app es un <strong style="color:var(--t1);">archivo HTML único</strong>. No necesita servidor, base de datos ni build step. Se puede alojar gratis en GitHub Pages y cualquier usuario puede usarla desde su navegador.
+        </p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Crear el repositorio</div>
+              <div class="step-desc">Crea un repo público en GitHub con el nombre <code>ecores-fl</code> y sube el archivo <code>index.html</code> a la rama principal.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Activar GitHub Pages</div>
+              <div class="step-desc">Settings → Pages → Source: <code>main</code> branch, carpeta <code>/ (root)</code> → Save.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Acceder al enlace</div>
+              <div class="step-desc">En ~60 segundos tu app estará en <code>https://tu-usuario.github.io/ecores-fl</code> y compartible con cualquiera.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">(Opcional) Dominio propio</div>
+              <div class="step-desc">En Settings → Pages → Custom domain: añade tu dominio. Activa "Enforce HTTPS".</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div class="chart-label">Comandos Git</div>
+          <pre><span class="comment"># Clonar / crear repo local</span>
+git init ecores-fl
+cd ecores-fl
+cp /ruta/a/index.html .
+
+<span class="comment"># Subir a GitHub</span>
+git add index.html
+git commit -m "feat: add EcoRes-FL web app"
+git remote add origin https://github.com/user/ecores-fl.git
+git push -u origin main
+
+<span class="comment"># La URL de tu app será:</span>
+<span style="color:var(--acc)">https://user.github.io/ecores-fl</span></pre>
+
+          <div style="margin-top:16px; background:rgba(0,212,160,0.06); border:1px solid rgba(0,212,160,0.15); border-radius:8px; padding:14px;">
+            <div style="font-size:11px;font-family:var(--mono);color:var(--acc);margin-bottom:6px;">¿Por qué HTML puro y no Streamlit?</div>
+            <div style="font-size:12px;color:var(--t2);line-height:1.6;">
+              Streamlit necesita un servidor Python activo (RAM ~500MB), se duerme tras inactividad, y no escala a múltiples usuarios simultáneos. Un HTML estático se sirve desde un CDN global, carga en &lt;1s y soporta tráfico ilimitado sin costo.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <p>EcoRes-FL · Simulador de Federated Learning consciente de la sostenibilidad</p>
+    <p style="margin-top:8px;">
+      <a href="https://github.com">GitHub</a> ·
+      <a href="#simulator">Simulador</a> ·
+      Hecho con Python + JS · MIT License (pendiente)
+    </p>
+  </div>
+</footer>
+
+<!-- ============================================================
+     SIMULATION DATA (pre-computed from ecores_fl_enhanced.py)
+     ============================================================ -->
+<script>
+const PRECOMPUTED = {"synthetic_vision|FedAvg":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.1327,0.188,0.2187,0.228,0.2293,0.2373,0.2493,0.2433,0.2467,0.262,0.2687,0.2807,0.282,0.2913,0.2833],"carbon":[0.00593,0.01292,0.0196,0.02499,0.0292,0.03435,0.04106,0.04642,0.05067,0.0578,0.0639,0.06891,0.07522,0.0827,0.09098],"comm":[0.0689,0.1476,0.2165,0.2854,0.3543,0.433,0.5118,0.5905,0.6496,0.7283,0.807,0.8858,0.9645,1.0432,1.122],"summary":{"dataset":"synthetic_vision","method":"FedAvg","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.2833,"macro_f1":0.2701,"comm_mb":1.122,"energy_j":1293.7717,"carbon_g":0.091,"drop_rate":0.05,"contribution_rate":0.95}},"synthetic_vision|FedProx":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.1647,0.2067,0.2187,0.2287,0.2207,0.2427,0.238,0.2567,0.2607,0.2673,0.2513,0.258,0.262,0.2687,0.2707],"carbon":[0.00736,0.01571,0.02286,0.02908,0.03312,0.04219,0.04922,0.05456,0.0615,0.06666,0.07202,0.07853,0.08712,0.09391,0.09948],"comm":[0.0689,0.1476,0.2165,0.2854,0.3346,0.4134,0.4921,0.561,0.6299,0.6889,0.7578,0.8366,0.9153,0.9842,1.0629],"summary":{"dataset":"synthetic_vision","method":"FedProx","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.2707,"macro_f1":0.2563,"comm_mb":1.0629,"energy_j":1343.9928,"carbon_g":0.0995,"drop_rate":0.1,"contribution_rate":0.9}},"synthetic_vision|CarbonAware":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.184,0.2067,0.2193,0.228,0.232,0.24,0.2433,0.244,0.2433,0.252,0.2567,0.26,0.2527,0.256,0.2573],"carbon":[0.0056,0.01288,0.02072,0.02802,0.03413,0.04109,0.047,0.05287,0.05829,0.06373,0.06845,0.07266,0.07892,0.08589,0.09185],"comm":[0.0591,0.1279,0.2067,0.2854,0.3543,0.433,0.5019,0.5708,0.6299,0.6988,0.7578,0.8169,0.8858,0.9645,1.0236],"summary":{"dataset":"synthetic_vision","method":"CarbonAware","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.2573,"macro_f1":0.2317,"comm_mb":1.0236,"energy_j":1410.7788,"carbon_g":0.0919,"drop_rate":0.1333,"contribution_rate":0.8667}},"synthetic_vision|EcoRes-FL":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.158,0.21,0.222,0.2333,0.2553,0.2487,0.2453,0.252,0.2473,0.2427,0.2387,0.236,0.2347,0.2427,0.248],"carbon":[0.00707,0.01246,0.02012,0.02771,0.03328,0.03974,0.04636,0.05261,0.05881,0.06495,0.07066,0.07672,0.08329,0.08955,0.09677],"comm":[0.0207,0.0384,0.062,0.0856,0.1033,0.124,0.1476,0.1712,0.1949,0.2185,0.2392,0.2598,0.2834,0.3041,0.3277],"summary":{"dataset":"synthetic_vision","method":"EcoRes-FL","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.248,"macro_f1":0.215,"comm_mb":0.3277,"energy_j":1429.328,"carbon_g":0.0968,"drop_rate":0.075,"contribution_rate":0.925}},"iot_fault|FedAvg":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.5053,0.5067,0.5367,0.5387,0.54,0.5313,0.5513,0.5427,0.5307,0.5347,0.5373,0.5433,0.552,0.5547,0.5593],"carbon":[0.00256,0.00423,0.00581,0.00911,0.01123,0.01372,0.0161,0.01891,0.02288,0.02572,0.03012,0.03272,0.03621,0.03876,0.04016],"comm":[0.0198,0.0397,0.057,0.0769,0.0942,0.1116,0.1289,0.1488,0.1686,0.186,0.2058,0.2256,0.2455,0.2653,0.2827],"summary":{"dataset":"iot_fault","method":"FedAvg","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.5593,"macro_f1":0.303,"comm_mb":0.2827,"energy_j":593.1163,"carbon_g":0.0402,"drop_rate":0.05,"contribution_rate":0.95}},"iot_fault|FedProx":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.496,0.5013,0.4667,0.5207,0.534,0.5473,0.5553,0.5607,0.56,0.552,0.5493,0.556,0.55,0.5487,0.5587],"carbon":[0.00527,0.00733,0.00928,0.01304,0.01546,0.01975,0.02247,0.02568,0.02862,0.03247,0.03481,0.03843,0.04192,0.04573,0.04803],"comm":[0.0174,0.0347,0.0496,0.0694,0.0868,0.1066,0.124,0.1438,0.1612,0.1785,0.1959,0.2157,0.2356,0.2554,0.2752],"summary":{"dataset":"iot_fault","method":"FedProx","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.5587,"macro_f1":0.2813,"comm_mb":0.2752,"energy_j":799.8619,"carbon_g":0.048,"drop_rate":0.075,"contribution_rate":0.925}},"iot_fault|CarbonAware":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.4887,0.5027,0.51,0.5347,0.5347,0.5407,0.5253,0.534,0.5307,0.5353,0.546,0.5413,0.5433,0.55,0.558],"carbon":[0.00394,0.00761,0.01109,0.01446,0.0177,0.02054,0.02337,0.0266,0.03001,0.03239,0.03437,0.0374,0.04093,0.04489,0.04893],"comm":[0.0198,0.0397,0.0595,0.0793,0.0992,0.1165,0.1339,0.1537,0.1736,0.1909,0.2033,0.2182,0.2356,0.2554,0.2752],"summary":{"dataset":"iot_fault","method":"CarbonAware","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.558,"macro_f1":0.304,"comm_mb":0.2752,"energy_j":684.1728,"carbon_g":0.0489,"drop_rate":0.075,"contribution_rate":0.925}},"iot_fault|EcoRes-FL":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.4573,0.5013,0.4953,0.5273,0.5247,0.5367,0.5193,0.5313,0.5253,0.5333,0.5347,0.5307,0.5393,0.5427,0.544],"carbon":[0.00344,0.00716,0.00984,0.01281,0.01598,0.01843,0.02151,0.02436,0.02751,0.03102,0.03474,0.03857,0.04099,0.0451,0.04778],"comm":[0.0052,0.0112,0.0157,0.0209,0.0269,0.0314,0.0374,0.0419,0.0471,0.0531,0.0591,0.065,0.0695,0.0755,0.0807],"summary":{"dataset":"iot_fault","method":"EcoRes-FL","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.544,"macro_f1":0.2939,"comm_mb":0.0807,"energy_j":672.0486,"carbon_g":0.0478,"drop_rate":0.1,"contribution_rate":0.9}},"digits|FedAvg":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.5289,0.6711,0.76,0.7956,0.8178,0.8244,0.8267,0.8489,0.8556,0.8622,0.8711,0.8778,0.8778,0.8778,0.88],"carbon":[0.0005,0.00119,0.00185,0.00262,0.0032,0.00419,0.00512,0.00595,0.00685,0.00755,0.00824,0.00896,0.00975,0.01067,0.01123],"comm":[0.0347,0.0744,0.1141,0.1537,0.1934,0.2331,0.2728,0.3124,0.3471,0.3868,0.4215,0.4612,0.4959,0.5356,0.5703],"summary":{"dataset":"digits","method":"FedAvg","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.88,"macro_f1":0.8757,"comm_mb":0.5703,"energy_j":156.4292,"carbon_g":0.0112,"drop_rate":0.0417,"contribution_rate":0.9583}},"digits|FedProx":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.6133,0.7778,0.7889,0.7867,0.8244,0.8111,0.8378,0.8378,0.8444,0.8533,0.8556,0.8644,0.8667,0.8778,0.8711],"carbon":[0.00104,0.00181,0.00243,0.00316,0.00411,0.00507,0.00571,0.00665,0.00756,0.00806,0.00929,0.01004,0.01043,0.0116,0.01256],"comm":[0.0397,0.0793,0.1141,0.1537,0.1835,0.2232,0.2628,0.3025,0.3422,0.3769,0.4166,0.4513,0.486,0.5257,0.5653],"summary":{"dataset":"digits","method":"FedProx","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.8711,"macro_f1":0.8669,"comm_mb":0.5653,"energy_j":172.1568,"carbon_g":0.0126,"drop_rate":0.05,"contribution_rate":0.95}},"digits|CarbonAware":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.6733,0.7644,0.7933,0.82,0.8311,0.8356,0.8444,0.8511,0.8556,0.86,0.8622,0.8667,0.8556,0.8689,0.8778],"carbon":[0.00101,0.00205,0.0031,0.00375,0.00451,0.00534,0.00634,0.00732,0.00811,0.00901,0.0098,0.01069,0.01149,0.01242,0.01319],"comm":[0.0397,0.0793,0.119,0.1438,0.1736,0.2083,0.248,0.2876,0.3223,0.362,0.3967,0.4364,0.4711,0.5108,0.5405],"summary":{"dataset":"digits","method":"CarbonAware","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.8778,"macro_f1":0.8757,"comm_mb":0.5405,"energy_j":153.2674,"carbon_g":0.0132,"drop_rate":0.0917,"contribution_rate":0.9083}},"digits|EcoRes-FL":{"rounds":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],"acc":[0.7511,0.8133,0.8222,0.8289,0.8311,0.8244,0.8289,0.8311,0.8356,0.8422,0.8467,0.8489,0.8511,0.86,0.8578],"carbon":[0.00077,0.00165,0.0027,0.00377,0.00482,0.00574,0.00675,0.0077,0.00862,0.00953,0.01041,0.01132,0.01211,0.01309,0.01377],"comm":[0.0089,0.0193,0.0312,0.0431,0.055,0.0655,0.0774,0.0893,0.1012,0.1131,0.125,0.1369,0.1473,0.1592,0.1681],"summary":{"dataset":"digits","method":"EcoRes-FL","clients":30,"clients_per_round":8,"alpha":0.25,"rounds":15,"accuracy":0.8578,"macro_f1":0.8527,"comm_mb":0.1681,"energy_j":158.2896,"carbon_g":0.0138,"drop_rate":0.0583,"contribution_rate":0.9417}}};
+
+const COLORS = { 'FedAvg':'#ff6b6b', 'FedProx':'#4ea8ff', 'CarbonAware':'#ffb347', 'EcoRes-FL':'#00d4a0' };
+const METHODS_ALL = ['FedAvg','FedProx','CarbonAware','EcoRes-FL'];
+const ALPHAS = ['0.10','0.25','0.50','1.00'];
+
+let activeMethods = new Set(METHODS_ALL);
+let charts = {};
+
+function toggleMethod(el) {
+  const m = el.dataset.method;
+  if (activeMethods.has(m)) {
+    if (activeMethods.size <= 1) return;
+    activeMethods.delete(m);
+    el.classList.remove('active');
+  } else {
+    activeMethods.add(m);
+    el.classList.add('active');
+  }
+}
+
+function getData(ds, method, metric, maxRound) {
+  const key = ds + '|' + method;
+  const d = PRECOMPUTED[key];
+  if (!d) return [];
+  const r = parseInt(maxRound);
+  return d[metric].slice(0, r);
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { if(c) c.destroy(); });
+  charts = {};
+}
+
+function buildLegend() {
+  const methods = METHODS_ALL.filter(m => activeMethods.has(m));
+  document.getElementById('chart-legend').innerHTML = methods.map(m =>
+    `<span class="leg-item"><span class="leg-swatch" style="background:${COLORS[m]}"></span>${m}</span>`
+  ).join('');
+}
+
+function chartDefaults() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 600, easing: 'easeInOutQuart' },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e2838', titleColor: '#e8f0fe', bodyColor: '#7a8fa6', borderColor: '#ffffff22', borderWidth: 1 } },
+    scales: {
+      x: { ticks: { color: '#4a5e72', font: { size: 10, family: 'Space Mono' } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { ticks: { color: '#4a5e72', font: { size: 10, family: 'Space Mono' } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  };
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  const prog = document.getElementById('prog-bar');
+  const fill = document.getElementById('prog-fill');
+  btn.disabled = true;
+  document.getElementById('btn-icon').innerHTML = '<span class="spin"></span>';
+  document.getElementById('btn-text').textContent = 'Procesando…';
+  prog.style.display = 'block';
+
+  await new Promise(r => setTimeout(r, 80));
+
+  const ds = document.getElementById('sel-dataset').value;
+  const rounds = parseInt(document.getElementById('sl-rounds').value);
+  const alphaIdx = parseInt(document.getElementById('sl-alpha').value);
+  const selectedMethods = METHODS_ALL.filter(m => activeMethods.has(m));
+
+  fill.style.width = '30%'; await new Promise(r => setTimeout(r, 150));
+
+  destroyCharts();
+
+  const rounds_arr = Array.from({length: rounds}, (_,i) => i+1);
+  const colors = selectedMethods.map(m => COLORS[m]);
+
+  // ── Acc chart
+  fill.style.width = '50%'; await new Promise(r => setTimeout(r, 80));
+  const accCtx = document.getElementById('chart-acc').getContext('2d');
+  charts.acc = new Chart(accCtx, {
+    type: 'line',
+    data: {
+      labels: rounds_arr,
+      datasets: selectedMethods.map(m => ({
+        label: m, data: getData(ds, m, 'acc', rounds),
+        borderColor: COLORS[m], backgroundColor: COLORS[m]+'22',
+        borderWidth: 2, pointRadius: 2, tension: 0.3, fill: false
+      }))
+    },
+    options: { ...chartDefaults(),
+      scales: { ...chartDefaults().scales,
+        y: { ...chartDefaults().scales.y, ticks: { ...chartDefaults().scales.y.ticks, callback: v => (v*100).toFixed(0)+'%' } }
+      }
+    }
+  });
+
+  // ── Comm chart
+  fill.style.width = '65%'; await new Promise(r => setTimeout(r, 80));
+  const commCtx = document.getElementById('chart-comm').getContext('2d');
+  charts.comm = new Chart(commCtx, {
+    type: 'line',
+    data: {
+      labels: rounds_arr,
+      datasets: selectedMethods.map(m => ({
+        label: m, data: getData(ds, m, 'comm', rounds),
+        borderColor: COLORS[m], backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.3,
+        borderDash: m === 'EcoRes-FL' ? [] : [4,3]
+      }))
+    },
+    options: { ...chartDefaults(),
+      scales: { ...chartDefaults().scales,
+        y: { ...chartDefaults().scales.y, ticks: { ...chartDefaults().scales.y.ticks, callback: v => v.toFixed(2)+' MB' } }
+      }
+    }
+  });
+
+  // ── Carbon chart
+  fill.style.width = '78%'; await new Promise(r => setTimeout(r, 80));
+  const cCtx = document.getElementById('chart-carbon').getContext('2d');
+  charts.carbon = new Chart(cCtx, {
+    type: 'line',
+    data: {
+      labels: rounds_arr,
+      datasets: selectedMethods.map(m => ({
+        label: m, data: getData(ds, m, 'carbon', rounds),
+        borderColor: COLORS[m], backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.3
+      }))
+    },
+    options: { ...chartDefaults(),
+      scales: { ...chartDefaults().scales,
+        y: { ...chartDefaults().scales.y, ticks: { ...chartDefaults().scales.y.ticks, callback: v => v.toFixed(4)+'g' } }
+      }
+    }
+  });
+
+  // ── Pareto scatter
+  fill.style.width = '88%'; await new Promise(r => setTimeout(r, 80));
+  const pCtx = document.getElementById('chart-pareto').getContext('2d');
+  charts.pareto = new Chart(pCtx, {
+    type: 'scatter',
+    data: {
+      datasets: selectedMethods.map(m => {
+        const key = ds+'|'+m;
+        const d = PRECOMPUTED[key];
+        return {
+          label: m,
+          data: [{ x: d.summary.carbon_g, y: d.summary.accuracy * 100 }],
+          backgroundColor: COLORS[m], borderColor: COLORS[m]+'99',
+          pointRadius: 9, pointHoverRadius: 11,
+          pointStyle: m === 'EcoRes-FL' ? 'star' : 'circle'
+        };
+      })
+    },
+    options: { ...chartDefaults(),
+      scales: {
+        x: { ...chartDefaults().scales.x, title: { display: true, text: 'Carbon (g) →', color: '#4a5e72', font: { size: 10 } } },
+        y: { ...chartDefaults().scales.y, title: { display: true, text: 'Accuracy (%) ↑', color: '#4a5e72', font: { size: 10 } }, ticks: { ...chartDefaults().scales.y.ticks, callback: v => v.toFixed(0)+'%' } }
+      }
+    }
+  });
+
+  // ── Metric cards
+  fill.style.width = '95%'; await new Promise(r => setTimeout(r, 80));
+  const eco = PRECOMPUTED[ds+'|EcoRes-FL']?.summary;
+  const avg = PRECOMPUTED[ds+'|FedAvg']?.summary;
+  if (eco && avg) {
+    const bestAcc = Math.max(...selectedMethods.map(m => PRECOMPUTED[ds+'|'+m].summary.accuracy));
+    const bestM = selectedMethods.reduce((a,m) => PRECOMPUTED[ds+'|'+m].summary.accuracy > PRECOMPUTED[ds+'|'+a].summary.accuracy ? m : a, selectedMethods[0]);
+    const commSave = ((avg.comm_mb - eco.comm_mb) / avg.comm_mb * 100).toFixed(0);
+    document.getElementById('mc-acc').textContent = (bestAcc*100).toFixed(1)+'%';
+    document.getElementById('mc-acc-m').textContent = bestM;
+    document.getElementById('mc-comm').textContent = eco.comm_mb.toFixed(3)+' MB';
+    document.getElementById('mc-comm-d').textContent = '↓'+commSave+'% vs FedAvg';
+    document.getElementById('mc-carbon').textContent = eco.carbon_g.toFixed(4)+' g';
+    document.getElementById('mc-carbon-d').textContent = 'gCO₂eq total ('+rounds+' rondas)';
+    document.getElementById('mc-save').textContent = commSave+'%';
+  }
+
+  // ── Table
+  const tbody = document.getElementById('results-tbody');
+  tbody.innerHTML = selectedMethods.map(m => {
+    const s = PRECOMPUTED[ds+'|'+m]?.summary;
+    if (!s) return '';
+    const isEco = m === 'EcoRes-FL';
+    const commDelta = avg ? ((s.comm_mb - avg.comm_mb)/avg.comm_mb*100).toFixed(0) : 0;
+    const deltaHtml = isEco
+      ? `<span class="delta-good">↓${Math.abs(commDelta)}%</span>`
+      : `<span style="color:var(--t3)">${commDelta > 0 ? '+' : ''}${commDelta}%</span>`;
+    return `<tr>
+      <td><span class="badge-pill" style="background:${COLORS[m]}22;color:${COLORS[m]}">${m}</span></td>
+      <td>${(s.accuracy*100).toFixed(1)}%</td>
+      <td>${s.macro_f1.toFixed(3)}</td>
+      <td>${s.comm_mb.toFixed(3)} MB ${deltaHtml}</td>
+      <td>${s.carbon_g.toFixed(4)} g</td>
+      <td>${Math.round(s.energy_j).toLocaleString()} J</td>
+      <td>${(s.drop_rate*100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
+  buildLegend();
+  fill.style.width = '100%'; await new Promise(r => setTimeout(r, 300));
+  prog.style.display = 'none'; fill.style.width = '0';
+  btn.disabled = false;
+  document.getElementById('btn-icon').textContent = '▶';
+  document.getElementById('btn-text').textContent = 'Ejecutar simulación';
+}
+
+// Auto-run on load
+window.addEventListener('load', () => setTimeout(runSimulation, 400));
+</script>
+</body>
+</html>
